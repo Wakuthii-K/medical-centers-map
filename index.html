@@ -50,7 +50,9 @@
   <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
 
   <script>
-    const GOOGLE_SHEETS_URL = 'https://docs.google.com/spreadsheets/d/1F808XU0eMAwqZqRRmm_lAt38af7mM873/export?format=csv&gid=0';
+    
+    const GOOGLE_SHEETS_URL = 'https://docs.google.com/spreadsheets/d/1F808XU0eMAwqZqRRmm_lAt38af7mM873/export?format=csv&gid=409799744';
+
 
     let map;
     let hospitalMarkers = [];
@@ -98,7 +100,7 @@
                 address: hospital["Location"],
                 contact: hospital["Phone"],
                 level: hospital["Level"],
-                licensed: hospital["SHA-Licensed"],
+                licensed: hospital["SHA-Licensed?"],
                 latitude: parseFloat(hospital["Latitude"]),
                 longitude: parseFloat(hospital["Longitude"])
               });
