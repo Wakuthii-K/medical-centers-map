@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Gunshot Victims Medical Centers Map</title>
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin=""/>
+
+  <style>
+    body { margin: 0; padding: 0; font-family: Arial, sans-serif; background: #f5f5f5; }
+    .header { background: #34495e; color: #fff; padding: 15px; text-align: center; }
+    .header h1 { margin: 0; font-size: 24px; }
+    .map-container { position: relative; height: calc(100vh - 80px); width: 100%; }
+    #map { height: 100%; width: 100%; }
+    .loading, .error { position: absolute; z-index: 1000; background: white; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+    .loading { top: 50%; left: 50%; transform: translate(-50%, -50%); padding: 20px; }
+    .error { top: 20px; right: 20px; background: #e74c3c; color: white; padding: 10px 15px; border-radius: 5px; max-width: 300px; display: none; }
+    .info-panel { position: absolute; top: 20px; left: 20px; background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); max-width: 250px; z-index: 1000; }
+    .hospital-count { font-size: 18px; font-weight: bold; color: #27ae60; }
+    .hospital-marker { background-color: #27ae60; border: 2px solid #229954; border-radius: 50%; width: 20px; height: 20px; }
+  </style>
+</head>
+
+<body>
+  <div class="header">
+    <h1>🏥 Gunshot Victim Medical Centers Map</h1>
+  </div>
+
+  <div class="map-container">
+    <div id="loading" class="loading">Loading medical centers data...</div>
+    <div id="error" class="error"><p id="error-message"></p></div>
+    <div class="info-panel">
+      <h3>📊 Statistics</h3>
+      <p>Medical Centers Found: <span id="hospital-count" class="hospital-count">0</span></p>
+      <p><small>Click on your nearest medical center to get contacts</small></p>
+    </div>
+    <div id="map"></div>
+  </div>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""></script>
+
+  <!-- PapaParse -->
+  <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
+
+  <script>
+    const GOOGLE_SHEETS_URL = 'https://docs.google.com/spreadsheets/d/1F808XU0eMAwqZqRRmm_lAt38af7mM873/export?format=csv&gid=0';
+
+    let map;
+    let hospitalMarkers = [];
+
+    function initMap() {
+      map = L.map('map').setView([-1.286389, 36.817223], 12); // Nairobi coordinates
+
+      const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors',
+        maxZoom: 18
+      });
+
+      const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        attribution: 'Tiles © Esri',
+        maxZoom: 18
+      });
+
+      osm.addTo(map);
+      L.control.layers({ "OpenStreetMap": osm, "Satellite": satellite }).addTo(map);
+
+      loadHospitals();
+      setInterval(loadHospitals, 5 * 60 * 1000);
+    }
+
+    async function loadHospitals() {
+      try {
+        showLoading(true);
+        hideError();
+
+        const response = await fetch(GOOGLE_SHEETS_URL);
+        const csvText = await response.text();
+
+        Papa.parse(csvText, {
+          header: true,
+          skipEmptyLines: true,
+          complete: function(results) {
+            const hospitals = results.data.filter(row =>
+              row["Latitude"] && row["Longitude"] && row["Facility Name"]
+            );
+
+            clearMarkers();
+            hospitals.forEach(hospital => {
+              addHospitalMarker({
+                name: hospital["Facility Name"],
+                address: hospital["Location"],
+                contact: hospital["Phone"],
+                level: hospital["Level"],
+                licensed: hospital["SHA-Licensed"],
+                latitude: parseFloat(hospital["Latitude"]),
+                longitude: parseFloat(hospital["Longitude"])
+              });
+            });
+
+            updateHospitalCount(hospitals.length);
+            showLoading(false);
+          },
+          error: function(error) {
+            console.error('Error parsing CSV:', error);
+            showError('Error parsing hospitals data');
+            showLoading(false);
+          }
+        });
+      } catch (error) {
+        console.error('Error fetching:', error);
+        showError('Failed to fetch data');
+        showLoading(false);
+      }
+    }
+
+    function addHospitalMarker(hospital) {
+      if (isNaN(hospital.latitude) || isNaN(hospital.longitude)) return;
+
+      const icon = L.divIcon({
+        className: 'hospital-marker',
+        html: '🏥',
+        iconSize: [30, 30],
+        iconAnchor: [15, 15],
+        popupAnchor: [0, -15]
+      });
+
+      const marker = L.marker([hospital.latitude, hospital.longitude], { icon });
+      const popup = `
+        <div style="min-width: 200px;">
+          <h3 style="margin:0 0 10px 0; color:#34495e;">${hospital.name}</h3>
+          <p><strong>Location:</strong> ${hospital.address}</p>
+          <p><strong>Phone:</strong> ${hospital.contact}</p>
+          <p><strong>Level:</strong> ${hospital.level}</p>
+          <p><strong>SHA-Licensed:</strong> ${hospital.licensed}</p>
+        </div>
+      `;
+
+      marker.bindPopup(popup);
+      marker.addTo(map);
+      hospitalMarkers.push(marker);
+    }
+
+    function clearMarkers() {
+      hospitalMarkers.forEach(marker => map.removeLayer(marker));
+      hospitalMarkers = [];
+    }
+
+    function updateHospitalCount(count) {
+      document.getElementById('hospital-count').textContent = count;
+    }
+
+    function showLoading(show) {
+      document.getElementById('loading').style.display = show ? 'block' : 'none';
+    }
+
+    function showError(msg) {
+      document.getElementById('error-message').textContent = msg;
+      document.getElementById('error').style.display = 'block';
+      setTimeout(() => hideError(), 5000);
+    }
+
+    function hideError() {
+      document.getElementById('error').style.display = 'none';
+    }
+
+    document.addEventListener('DOMContentLoaded', initMap);
+  </script>
+</body>
+</html>
