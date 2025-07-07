@@ -27,7 +27,7 @@
 
 <body>
   <div class="header">
-    <h1>🏥 Gunshot Victim Medical Centers Map</h1>
+    <h1>🏥 Gunshot Victims Medical Centers Map</h1>
   </div>
 
   <div class="map-container">
@@ -74,7 +74,7 @@
       L.control.layers({ "OpenStreetMap": osm, "Satellite": satellite }).addTo(map);
 
       loadHospitals();
-      setInterval(loadHospitals, 5 * 60 * 1000);
+      setInterval(loadHospitals, 1 * 60 * 1000);
     }
 
     async function loadHospitals() {
